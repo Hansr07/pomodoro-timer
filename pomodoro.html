@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍅 番茄钟</title>
+<style>
+  :root {
+    --work: #e74c3c;
+    --short-break: #2ecc71;
+    --long-break: #3498db;
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --text: #eee;
+    --sub: #999;
+    --ring-bg: #2a2a4a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .container {
+    background: var(--surface);
+    border-radius: 24px;
+    padding: 48px 40px 36px;
+    text-align: center;
+    width: 420px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+
+  h1 { font-size: 28px; margin-bottom: 6px; }
+  .subtitle { color: var(--sub); font-size: 13px; margin-bottom: 28px; }
+
+  /* Mode tabs */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 32px;
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 4px;
+  }
+  .tab {
+    flex: 1;
+    padding: 10px 6px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    color: var(--sub);
+    transition: all 0.25s;
+  }
+  .tab.active { background: var(--ring-bg); color: #fff; }
+
+  /* Timer ring */
+  .ring-wrapper { position: relative; width: 260px; height: 260px; margin: 0 auto 24px; }
+  .ring-wrapper svg { transform: rotate(-90deg); }
+  .ring-bg {
+    fill: none;
+    stroke: var(--ring-bg);
+    stroke-width: 10;
+  }
+  .ring-progress {
+    fill: none;
+    stroke: var(--work);
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s linear, stroke 0.4s;
+  }
+  .timer-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .time {
+    font-size: 60px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 2px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .status-label {
+    font-size: 14px;
+    color: var(--sub);
+    text-transform: uppercase;
+    letter-spacing: 3px;
+  }
+
+  /* Buttons */
+  .controls { display: flex; gap: 12px; justify-content: center; margin-bottom: 28px; }
+  .btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .btn-play {
+    background: var(--work);
+    color: #fff;
+    width: 64px;
+    height: 64px;
+    font-size: 26px;
+    box-shadow: 0 6px 20px rgba(231,76,60,0.4);
+  }
+  .btn-play:hover { transform: scale(1.08); }
+  .btn-play.running { background: #f39c12; box-shadow: 0 6px 20px rgba(243,156,18,0.4); }
+  .btn-sm {
+    background: var(--ring-bg);
+    color: var(--text);
+    font-size: 18px;
+  }
+  .btn-sm:hover { background: #3a3a5a; }
+
+  /* Session counter */
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    font-size: 13px;
+    color: var(--sub);
+  }
+  .stats span { font-weight: 700; color: var(--text); font-size: 18px; }
+
+  /* Notification permission hint */
+  .notif-hint {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #666;
+    cursor: pointer;
+  }
+  .notif-hint:hover { color: var(--sub); }
+
+  /* Responsive */
+  @media (max-width: 460px) {
+    .container { width: 94vw; padding: 32px 20px 28px; }
+    .ring-wrapper { width: 220px; height: 220px; }
+    .time { font-size: 50px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🍅 番茄钟</h1>
+  <p class="subtitle">专注工作 · 高效休息</p>
+
+  <div class="tabs">
+    <button class="tab active" data-mode="work">🍅 专注</button>
+    <button class="tab" data-mode="short-break">☕ 小憩</button>
+    <button class="tab" data-mode="long-break">🌿 长休</button>
+  </div>
+
+  <div class="ring-wrapper">
+    <svg width="260" height="260" viewBox="0 0 260 260">
+      <circle class="ring-bg" cx="130" cy="130" r="120"/>
+      <circle class="ring-progress" id="ring" cx="130" cy="130" r="120"
+              stroke-dasharray="753.98" stroke-dashoffset="0"/>
+    </svg>
+    <div class="timer-text">
+      <div class="time" id="timer">25:00</div>
+      <div class="status-label" id="status">准备开始</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-sm" id="btnReset" title="重置">↺</button>
+    <button class="btn btn-play" id="btnToggle" title="开始">▶</button>
+    <button class="btn btn-sm" id="btnSkip" title="跳过">⏭</button>
+  </div>
+
+  <div class="stats">
+    <div>🍅 完成 <br><span id="countWork">0</span></div>
+    <div>📅 今日 <br><span id="countToday">0</span></div>
+    <div>⏱ 累计 <br><span id="totalTime">0min</span></div>
+  </div>
+
+  <div class="notif-hint" id="notifHint" title="点击开启浏览器通知">
+    🔔 点击开启桌面通知提醒
+  </div>
+</div>
+
+<script>
+  const SETTINGS = {
+    work: 25 * 60,
+    'short-break': 5 * 60,
+    'long-break': 15 * 60,
+  };
+
+  const LABELS = {
+    work: '专注中',
+    'short-break': '小憩中',
+    'long-break': '长休中',
+  };
+
+  const COLORS = {
+    work: '#e74c3c',
+    'short-break': '#2ecc71',
+    'long-break': '#3498db',
+  };
+
+  const circumference = 2 * Math.PI * 120; // ~753.98
+
+  // --- State ---
+  let mode = 'work';
+  let timeLeft = SETTINGS[mode];
+  let totalSeconds = SETTINGS[mode];
+  let intervalId = null;
+  let running = false;
+
+  // Stats
+  let workSessions = parseInt(localStorage.getItem('pomo_work') || '0');
+  let todaySessions = parseInt(localStorage.getItem('pomo_today') || '0');
+  let todayDate = localStorage.getItem('pomo_date') || '';
+  let totalMinutes = parseInt(localStorage.getItem('pomo_minutes') || '0');
+
+  // Check day reset
+  const today = new Date().toDateString();
+  if (todayDate !== today) {
+    todaySessions = 0;
+    todayDate = today;
+    localStorage.setItem('pomo_today', '0');
+    localStorage.setItem('pomo_date', today);
+  }
+
+  // --- DOM ---
+  const $timer = document.getElementById('timer');
+  const $status = document.getElementById('status');
+  const $ring = document.getElementById('ring');
+  const $btnToggle = document.getElementById('btnToggle');
+  const $btnReset = document.getElementById('btnReset');
+  const $btnSkip = document.getElementById('btnSkip');
+  const $notifHint = document.getElementById('notifHint');
+  const tabs = document.querySelectorAll('.tab');
+
+  // --- Audio ---
+  // Simple beep using AudioContext
+  function playBeep(freq = 800, duration = 200, repeat = 1) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      for (let i = 0; i < repeat; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const startTime = ctx.currentTime + i * (duration / 1000 + 0.1);
+        gain.gain.setValueAtTime(0.3, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration / 1000);
+        osc.start(startTime);
+        osc.stop(startTime + duration / 1000);
+      }
+    } catch (_) { /* audio not supported */ }
+  }
+
+  function playAlarm() {
+    playBeep(880, 150, 3);
+    setTimeout(() => playBeep(660, 150, 2), 500);
+    setTimeout(() => playBeep(880, 300, 1), 900);
+  }
+
+  // --- Notification ---
+  function requestNotification() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+
+  function notify(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body, icon: '🍅', silent: false });
+    }
+    playAlarm();
+  }
+
+  $notifHint.addEventListener('click', requestNotification);
+
+  // Auto-request notification on first interaction
+  document.addEventListener('click', function autoReq() {
+    requestNotification();
+  }, { once: true });
+
+  // --- Timer ---
+  function formatTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+
+  function updateDisplay() {
+    $timer.textContent = formatTime(timeLeft);
+    const progress = (totalSeconds - timeLeft) / totalSeconds;
+    $ring.style.strokeDashoffset = circumference * (1 - progress);
+    $ring.style.stroke = COLORS[mode];
+  }
+
+  function updateStats() {
+    document.getElementById('countWork').textContent = workSessions;
+    document.getElementById('countToday').textContent = todaySessions;
+    document.getElementById('totalTime').textContent = totalMinutes + 'min';
+  }
+
+  function setMode(newMode) {
+    mode = newMode;
+    totalSeconds = SETTINGS[mode];
+    timeLeft = totalSeconds;
+    running = false;
+    clearInterval(intervalId);
+    intervalId = null;
+
+    $btnToggle.textContent = '▶';
+    $btnToggle.classList.remove('running');
+    $status.textContent = '准备开始';
+
+    tabs.forEach(t => t.classList.remove('active'));
+    document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
+
+    updateDisplay();
+    updateStats();
+  }
+
+  function tick() {
+    if (timeLeft <= 0) {
+      clearInterval(intervalId);
+      intervalId = null;
+      running = false;
+      $btnToggle.textContent = '▶';
+      $btnToggle.classList.remove('running');
+      updateDisplay();
+
+      if (mode === 'work') {
+        // Work session completed!
+        workSessions++;
+        todaySessions++;
+        totalMinutes += Math.floor(SETTINGS.work / 60);
+        localStorage.setItem('pomo_work', workSessions);
+        localStorage.setItem('pomo_today', todaySessions);
+        localStorage.setItem('pomo_date', todayDate);
+        localStorage.setItem('pomo_minutes', totalMinutes);
+        updateStats();
+
+        $status.textContent = '完成！';
+        notify('🍅 番茄钟完成！', '太棒了！休息一下吧~');
+
+        // Auto-switch to break
+        if (workSessions % 4 === 0) {
+          setMode('long-break');
+        } else {
+          setMode('short-break');
+        }
+      } else {
+        // Break completed
+        $status.textContent = '休息结束';
+        notify('⏰ 休息时间结束', '准备开始下一个番茄吧！');
+        setMode('work');
+      }
+      return;
+    }
+
+    timeLeft--;
+    updateDisplay();
+
+    if (timeLeft === 0) {
+      tick();
+    }
+  }
+
+  function toggle() {
+    if (running) {
+      // Pause
+      running = false;
+      clearInterval(intervalId);
+      intervalId = null;
+      $btnToggle.textContent = '▶';
+      $btnToggle.classList.remove('running');
+      $status.textContent = '已暂停';
+    } else {
+      // Start
+      running = true;
+      $status.textContent = LABELS[mode];
+      intervalId = setInterval(tick, 1000);
+      $btnToggle.textContent = '⏸';
+      $btnToggle.classList.add('running');
+    }
+  }
+
+  function reset() {
+    running = false;
+    clearInterval(intervalId);
+    intervalId = null;
+    timeLeft = SETTINGS[mode];
+    totalSeconds = SETTINGS[mode];
+    $btnToggle.textContent = '▶';
+    $btnToggle.classList.remove('running');
+    $status.textContent = '准备开始';
+    updateDisplay();
+  }
+
+  function skip() {
+    if (running) {
+      clearInterval(intervalId);
+      intervalId = null;
+      running = false;
+    }
+    timeLeft = 0;
+    tick();
+  }
+
+  // --- Events ---
+  $btnToggle.addEventListener('click', toggle);
+  $btnReset.addEventListener('click', reset);
+  $btnSkip.addEventListener('click', skip);
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (running) {
+        if (!confirm('切换模式将重置当前计时，确定吗？')) return;
+        clearInterval(intervalId);
+        intervalId = null;
+        running = false;
+        $btnToggle.textContent = '▶';
+        $btnToggle.classList.remove('running');
+      }
+      setMode(tab.dataset.mode);
+    });
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      toggle();
+    } else if (e.code === 'KeyR') {
+      reset();
+    } else if (e.code === 'KeyS') {
+      skip();
+    } else if (e.code === 'Digit1') {
+      setMode('work');
+    } else if (e.code === 'Digit2') {
+      setMode('short-break');
+    } else if (e.code === 'Digit3') {
+      setMode('long-break');
+    }
+  });
+
+  // --- Title bar ticker ---
+  const origTitle = document.title;
+  function updateTitle() {
+    if (running) {
+      document.title = `[${formatTime(timeLeft)}] ${LABELS[mode]} - 🍅`;
+    } else {
+      document.title = origTitle;
+    }
+  }
+  const _tick = tick;
+  tick = function() { _tick(); updateTitle(); };
+  const _toggle = toggle;
+  toggle = function() { _toggle(); updateTitle(); };
+  const _reset = reset;
+  reset = function() { _reset(); updateTitle(); };
+  const _setMode = setMode;
+  setMode = function(m) { _setMode(m); updateTitle(); };
+
+  // --- Init ---
+  updateDisplay();
+  updateStats();
+  updateTitle();
+</script>
+
+</body>
+</html>
